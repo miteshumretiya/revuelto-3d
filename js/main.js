@@ -754,7 +754,9 @@ function toggleDriveLights() {
   userParts.lights = userParts.lights ? 0 : 1;
   partState.lights.target = userParts.lights;
   $('#driveLightsBtn').setAttribute('aria-pressed', String(!!userParts.lights));
-  syncPartsFromUser();
+  // only the lights change here: doors, bonnet and engine cover stay shut while driving
+  const t = $('.toggle[data-part="lights"]');
+  if (t) t.setAttribute('aria-pressed', String(!!userParts.lights));
 }
 function resetDrive() { Object.assign(drive, { x: 0, z: 0, heading: 0, speed: 0, steer: 0 }); }
 $('#camBtn').addEventListener('click', cycleDriveCam);
