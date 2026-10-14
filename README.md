@@ -35,7 +35,7 @@
 
 ## Four ways to see the car
 
-The switcher at the top of the page moves between four views. They all share one car, so a colour you pick in **Configure** is the car you take into **Drive**.
+The switcher at the top of the page moves between four views. They all share one car, so a colour you pick in **Configure** is the car you take into **Drive**. Configure and Explore take place in an isometric workshop where a mechanic is busy at the back of the car.
 
 <table>
   <tr>
@@ -45,14 +45,14 @@ The switcher at the top of the page moves between four views. They all share one
       <p>Eight chapters that play as you scroll. The camera moves around the car, and the doors, engine cover and lights open as the story reaches them. It ends with the key figures and a choice of where to go next.</p>
     </td>
     <td width="50%" valign="top">
-      <img src="docs/screens/configure.webp" alt="Configure view: a yellow car with doors open beside the options panel">
+      <img src="docs/screens/configure.webp" alt="Configure view: a yellow car with its doors open in the isometric garage, beside the options panel">
       <h3>Configure</h3>
       <p>Choose from 9 paints in gloss or matte, 4 wheel finishes, 6 caliper colours and 5 interiors. Open the doors, bonnet and engine cover, or switch on the lights. <b>Copy spec link</b> gives you a URL that opens the same build.</p>
     </td>
   </tr>
   <tr>
     <td width="50%" valign="top">
-      <img src="docs/screens/explore-engine.webp" alt="Explore view: engine cover open with an info card about the V12">
+      <img src="docs/screens/explore-engine.webp" alt="Explore view: engine cover open with an info card about the V12, the mechanic kneeling at the rear wheel">
       <h3>Explore</h3>
       <p>Seven glowing points on the car open info cards, and the camera flies to each part. There's also <b>Sit inside</b> for a driver's-eye view and <b>X-ray</b>, which turns the body into a glass shell.</p>
     </td>
@@ -64,13 +64,23 @@ The switcher at the top of the page moves between four views. They all share one
   </tr>
 </table>
 
+### The garage
+
+<p align="center">
+  <img src="docs/screens/garage.webp" alt="Isometric cut-away garage: the car in a marked service bay, a mechanic kneeling at the rear wheel, a workbench, tool cabinet, shelving and a roller door" width="100%">
+</p>
+
+Configure and Explore open in a cut-away workshop seen from a high isometric angle. The walls rise into place as you arrive. Orbit around and whichever walls face you drop away, so the car is never hidden.
+
+Behind the car a **mechanic** works through a loop. He kneels at the left-rear wheel with an impact wrench, stands, walks to the red tool cabinet, pulls a drawer open to look for a tool, and walks back to carry on. The room has a workbench with a pegboard of tools, shelving, a tyre stack, a roller door with daylight coming through, a compressor and a trolley jack. All of it is built in code, so no extra models are downloaded.
+
 <details>
 <summary><b>More screenshots</b></summary>
 <br>
 
 | X-ray | Driver's seat |
 | :---: | :---: |
-| <img src="docs/screens/explore-xray.webp" alt="X-ray mode: a see-through body shell around the engine, cabin and wheels"> | <img src="docs/screens/cockpit.webp" alt="Cockpit view from the driver's seat"> |
+| <img src="docs/screens/explore-xray.webp" alt="X-ray mode in the garage: a see-through body shell around the engine, with the mechanic at the rear wheel"> | <img src="docs/screens/cockpit.webp" alt="Cockpit view from the driver's seat, looking out into the garage"> |
 | **Tour: the engine chapter** | **Tour: the numbers** |
 | <img src="docs/screens/tour-engine.webp" alt="Tour chapter about the V12 with the engine cover raised"> | <img src="docs/screens/tour-numbers.webp" alt="Tour chapter listing power, acceleration, top speed, battery and weight"> |
 
@@ -79,7 +89,7 @@ The switcher at the top of the page moves between four views. They all share one
 ### Built for phones too
 
 <p align="center">
-  <img src="docs/screens/mobile.webp" alt="Three phone screens: the tour opening, the configurator as a bottom sheet, and an Explore info card" width="88%">
+  <img src="docs/screens/mobile.webp" alt="Three phone screens: the tour opening, the garage configurator with a bottom sheet, and an Explore info card" width="88%">
 </p>
 
 On narrow screens the text moves below the car, the configurator becomes a bottom sheet, and the camera pulls back so the whole car fits a tall screen.
@@ -129,6 +139,8 @@ revuelto-3d/
 ├── index.html              page structure: tour chapters, panels, HUD
 ├── css/style.css           all styling, desktop and mobile
 ├── js/main.js              scene, materials, camera, and all four views
+├── js/garage.js            the isometric workshop: floor, walls, props, lighting
+├── js/mechanic.js          the mechanic: figure, poses and work routine
 ├── models/revuelto.glb     the optimised car (5.3 MB)
 ├── vendor/three/           three.js r169 + GLTFLoader, OrbitControls, meshopt decoder
 ├── fonts/                  Archivo variable font, self-hosted
@@ -174,6 +186,8 @@ Pass a third argument such as `0.6` to also simplify the meshes for a lighter mo
 - **Hero title:** the word *Revuelto* is HTML that sits *behind* a transparent canvas, so the car sits in front of it.
 - **Moving parts:** each door, the bonnet and the engine cover is re-parented under a pivot at its real hinge, then eased open. Wheels get an extra spin node between the steering control and the wheel.
 - **Materials:** paint, rims, calipers, leather and stitching are shared materials, so one colour change updates every part that uses it. Glass swaps the costly transmission effect for tinted transparency.
+- **Garage:** built from boxes, cylinders and canvas-drawn textures (floor markings, pegboard, signs), then merged into one mesh per material to keep draw calls low. The isometric look comes from a long lens (14° field of view) placed far away. Each wall hides itself when the camera is on its outer side. A daylight key light casts shadows, and the shadow map is only redrawn when a door or panel moves.
+- **Mechanic:** a jointed figure (hips, knees, shoulders, elbows, neck) driven by blended poses: kneeling, standing and reaching. A procedural walk cycle ties leg swing to the distance actually covered, so his feet don't slide.
 - **X-ray:** body panels switch to an additive Fresnel shader, while the engine, cabin and wheels keep their normal materials.
 - **Tour camera:** follows a Catmull-Rom curve through eight keyframes. It eases between chapters and rests while you read.
 - **Drive:** a simple bicycle model for steering, where the maximum steering angle shrinks as speed rises. The chase camera widens its lens as you go faster.
@@ -192,6 +206,9 @@ Almost everything is a plain array near the top of `js/main.js`.
 | Tour camera shots and what opens in each chapter | `TOUR` |
 | Tour text | the `<section class="chapter">` blocks in `index.html` |
 | Hotspots and their info cards | `SPOTS` |
+| Isometric camera angle and distance | `ISO` |
+| The mechanic's routine (timings, where he walks) | `SEQ` in `js/mechanic.js`, positions in `js/garage.js` |
+| Garage props and colours | the wall blocks and `M` materials in `js/garage.js` |
 | Driving feel (top speed, acceleration, braking) | `MAX`, `ACC`, `BRAKE` in `stepDrive()` |
 | Colours and type of the interface | CSS variables at the top of `css/style.css` |
 

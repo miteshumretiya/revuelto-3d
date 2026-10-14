@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
+import { createGarage } from './garage.js';
 
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
@@ -72,6 +73,10 @@ const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true,
 renderer.setClearColor(0x000000, 0);
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.0;
+// shadows are only drawn in the garage, and the map is redrawn only when something moves
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.shadowMap.autoUpdate = false;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 
 const scene = new THREE.Scene();
@@ -113,7 +118,8 @@ function buildEnvironment() {
   pmrem.dispose();
   return tex;
 }
-scene.environment = buildEnvironment();
+const studioEnv = buildEnvironment();
+scene.environment = studioEnv;
 
 /* ------------------------------------------------------------------ canvas textures */
 function radialTexture(stops, size = 512) {
@@ -241,6 +247,23 @@ for (const x of [0.62, -0.62]) {
   beams.push(s);
 }
 
+/* ------------------------------------------------------------------ garage (Configure and Explore) */
+const garage = createGarage(renderer);
+scene.add(garage.group);
+// key light for the garage; always in the scene (intensity 0 elsewhere) so shaders never recompile
+const keyLight = new THREE.DirectionalLight(0xfff3e4, 0);
+keyLight.position.set(-7, 10, 2.5); // daylight from the roller-door side, so shadows fall where the camera sees them
+keyLight.target.position.set(0, 0, -0.6);
+keyLight.castShadow = true;
+keyLight.shadow.mapSize.set(2048, 2048);
+Object.assign(keyLight.shadow.camera, { left: -8, right: 8, top: 8, bottom: -8, near: 1, far: 30 });
+keyLight.shadow.bias = -0.0004;
+keyLight.shadow.normalBias = 0.03;
+keyLight.shadow.radius = 4;
+scene.add(keyLight, keyLight.target);
+const GARAGE_MODES = new Set(['configure', 'explore']);
+let shadowDirty = true;
+
 const mats = {};       // shared, editable materials
 const parts = {};      // pivots for moving panels
 const wheels = [];
@@ -301,6 +324,7 @@ function setupCar(root) {
     };
     o.material = Array.isArray(o.material) ? o.material.map(swap) : swap(o.material);
     o.frustumCulled = true;
+    o.castShadow = true;
   });
 
   // --- moving panels: re-parent each group under a pivot at its hinge ---
@@ -339,7 +363,11 @@ function setupCar(root) {
 
 function applyPartsToScene(dt) {
   const k = reduceMotion ? 20 : 3.2;
-  for (const s of Object.values(partState)) s.cur = damp(s.cur, s.target, k, dt);
+  let moving = false;
+  for (const s of Object.values(partState)) {
+    if (Math.abs(s.cur - s.target) > 0.001) moving = true;
+    s.cur = damp(s.cur, s.target, k, dt);
+  }
   const d = ease(clamp(partState.doors.cur, 0, 1));
   if (parts.doorL) { parts.doorL.rotation.set(d * 1.12, 0, -d * 0.1); }
   if (parts.doorR) { parts.doorR.rotation.set(d * 1.12, 0, d * 0.1); }
@@ -353,6 +381,7 @@ function applyPartsToScene(dt) {
   if (mats.screen) mats.screen.emissiveIntensity = l * 1.6;
   const beamOn = mode === 'drive' ? l : 0;
   for (const b of beams) b.intensity = beamOn * 380;
+  return moving;
 }
 
 let xrayOn = false;
@@ -582,12 +611,13 @@ function stepFlight(dt) {
   return true;
 }
 
-function orbitMode({ target, minD = 3.4, maxD = 16, inside = false }) {
+function orbitMode({ target, minD = 3.4, maxD = 16, inside = false, iso = false }) {
   controls.target.copy(target);
-  controls.minDistance = inside ? 0.04 : minD;
-  controls.maxDistance = inside ? 0.04 : maxD * fitScale(0.9);
-  controls.maxPolarAngle = inside ? Math.PI * 0.85 : 1.5;
-  controls.minPolarAngle = inside ? 0.25 : 0.15;
+  controls.minDistance = inside ? 0.04 : iso ? 13 : minD;
+  controls.maxDistance = inside ? 0.04 : (iso ? 52 : maxD) * fitScale(0.9);
+  // the isometric view stays above the walls so the room reads as a diorama
+  controls.maxPolarAngle = inside ? Math.PI * 0.85 : iso ? 1.3 : 1.5;
+  controls.minPolarAngle = inside ? 0.25 : iso ? 0.35 : 0.15;
   controls.rotateSpeed = inside ? -0.35 : 0.7;
   controls.enableZoom = !inside;
   controls.enabled = true;
@@ -658,7 +688,12 @@ for (const s of SPOTS) {
 }
 let activeSpot = -1;
 let inside = false;
-const OVERVIEW = { pos: V(6.2, 2.3, 7.4), target: V(0, 0.55, 0.05) };
+// Isometric look: a long lens far away, 45 degrees round from the front-left corner
+const ISO = { az: Math.PI / 4, el: 0.6, dist: 45, fov: 14, target: V(0.2, 0.6, -0.4) };
+function isoPos(fit = 0.75) {
+  const d = ISO.dist * fitScale(fit);
+  return ISO.target.clone().add(V(Math.cos(ISO.el) * Math.sin(ISO.az), Math.sin(ISO.el), Math.cos(ISO.el) * Math.cos(ISO.az)).multiplyScalar(d));
+}
 const INSIDE = { pos: V(0.36, 0.98, -0.08), target: V(0.35, 0.86, 0.6) };
 
 function exploreOverview() {
@@ -667,8 +702,8 @@ function exploreOverview() {
   for (const k of Object.keys(partState)) partState[k].target = 0;
   $('#infoCard').hidden = true;
   updateHotspotClasses();
-  const s = fitScale(0.62);
-  flyTo(scaled(OVERVIEW.pos, OVERVIEW.target, s), OVERVIEW.target, 1.3, () => orbitMode({ target: OVERVIEW.target }));
+  // on phones Explore frames tighter than Configure so the hotspots don't crowd together
+  flyTo(isoPos(isNarrow() ? 0.2 : 0.75), ISO.target, 1.5, () => orbitMode({ target: ISO.target, iso: true }), ISO.fov);
 }
 function openSpot(i) {
   activeSpot = (i + SPOTS.length) % SPOTS.length;
@@ -840,7 +875,6 @@ function setMode(next, { instant = false } = {}) {
   if (xrayOn) setXray(false);
   if (inside) { inside = false; $('#insideBtn').setAttribute('aria-pressed', 'false'); }
   camera.near = 0.05;
-  camera.fov = 30;
   camera.updateProjectionMatrix();
   // leaving drive: park the car back in the studio
   if (prev === 'drive') {
@@ -849,7 +883,16 @@ function setMode(next, { instant = false } = {}) {
     car.rotation.set(0, 0, 0);
     for (const w of wheels) { w.ctrl.rotation.y = 0; }
   }
-  studioFloor.visible = next !== 'drive';
+  // stage: studio floor for the tour, garage for Configure and Explore, open lot for Drive
+  const inGarage = GARAGE_MODES.has(next);
+  if (inGarage && !garage.group.visible) garage.show(instant || reduceMotion);
+  if (!inGarage) garage.hide();
+  scene.environment = inGarage ? garage.envMap : studioEnv;
+  keyLight.intensity = inGarage ? 2.1 : 0;
+  shadow.material.opacity = inGarage ? 0.7 : 1;
+  shadowCore.material.opacity = inGarage ? 0.6 : 0.85;
+  shadowDirty = true;
+  studioFloor.visible = next === 'tour';
   driveWorld.visible = next === 'drive';
   scene.fog = next === 'drive' ? new THREE.Fog(FOG_COLOR, 25, 170) : null;
 
@@ -858,9 +901,7 @@ function setMode(next, { instant = false } = {}) {
     requestAnimationFrame(() => scrollTo({ top: tourScroll, behavior: 'instant' }));
   } else if (next === 'configure') {
     syncPartsFromUser();
-    const t = V(0, 0.55, 0.05);
-    const p = scaled(V(6.4, 2.0, 7.2), t, fitScale(0.68));
-    flyTo(p, t, instant ? 0.01 : 1.4, () => orbitMode({ target: t }));
+    flyTo(isoPos(), ISO.target, instant ? 0.01 : 1.6, () => orbitMode({ target: ISO.target, iso: true }), ISO.fov);
   } else if (next === 'explore') {
     exploreOverview();
   } else if (next === 'drive') {
@@ -922,6 +963,7 @@ function frame() {
       lookTarget.x = damp(lookTarget.x, pose.target.x, k, dt);
       lookTarget.y = damp(lookTarget.y, pose.target.y, k, dt);
       lookTarget.z = damp(lookTarget.z, pose.target.z, k, dt);
+      camera.fov = damp(camera.fov, 30, 4, dt);
       camera.lookAt(lookTarget);
       // the wheels creep forward as you scroll, as if the car were rolling in
       const roll = (scrollY / innerHeight) * 2.2;
@@ -932,7 +974,17 @@ function frame() {
       controls.update();
       lookTarget.copy(controls.target);
     }
-    applyPartsToScene(dt);
+    // far-away isometric views need a deeper near plane for depth precision
+    if (GARAGE_MODES.has(mode) && !inside) {
+      camera.near = clamp(camera.position.distanceTo(lookTarget) * 0.03, 0.05, 1.2);
+    }
+    const moving = applyPartsToScene(dt);
+    const building = garage.update(dt, camera);
+    // redraw the garage shadows only when the car or the room changes
+    if (garage.group.visible && (moving || building || shadowDirty)) {
+      renderer.shadowMap.needsUpdate = true;
+      shadowDirty = false;
+    }
     updateHotspots();
   }
   view.shiftX = damp(view.shiftX, view.tShiftX, 4, dt);
@@ -987,4 +1039,4 @@ applySpec();
 requestAnimationFrame(frame);
 
 // test hook, only with ?snap
-if (SNAP) window.__revuelto = { mats, scene, setMode, partState, camera, lookTarget, spec, applySpec, openSpot, setXray, keys, drive };
+if (SNAP) window.__revuelto = { renderer, keyLight, garage, controls, mats, scene, setMode, partState, camera, lookTarget, spec, applySpec, openSpot, setXray, keys, drive };
