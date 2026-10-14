@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Revuelto 3D</title>
+  <meta name="description" content="An interactive 3D showcase of the Lamborghini Revuelto: scroll tour, configurator, detail explorer and drive mode. Unofficial fan project.">
+  <meta name="theme-color" content="#16181b">
+  <link rel="preload" href="fonts/archivo-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="models/revuelto.glb" as="fetch" crossorigin>
+  <link rel="stylesheet" href="css/style.css">
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "./vendor/three/three.module.js",
+        "three/addons/": "./vendor/three/addons/"
+      }
+    }
+  </script>
+</head>
+<body data-mode="tour" class="is-loading">
+  <a class="skip" href="#tour">Skip to content</a>
+
+  <!-- Hero title sits behind the WebGL canvas, so the car passes in front of it -->
+  <div class="backdrop" aria-hidden="true">
+    <div class="hero-title" id="heroTitle">Revuelto</div>
+  </div>
+  <canvas id="scene" aria-label="3D model of the Lamborghini Revuelto"></canvas>
+
+  <!-- Loader -->
+  <div class="loader" id="loader" role="status" aria-live="polite">
+    <div class="loader-inner">
+      <p class="loader-name">Revuelto 3D</p>
+      <div class="loader-bar"><span id="loaderBar"></span></div>
+      <p class="loader-text" id="loaderText">Loading the car</p>
+    </div>
+  </div>
+
+  <!-- Top bar -->
+  <header class="topbar">
+    <a class="brand" href="#top" data-go="tour">Revuelto <span>3D</span></a>
+    <nav class="modes" aria-label="Choose a view">
+      <button type="button" data-mode-btn="tour" aria-pressed="true">Tour</button>
+      <button type="button" data-mode-btn="configure" aria-pressed="false">Configure</button>
+      <button type="button" data-mode-btn="explore" aria-pressed="false">Explore</button>
+      <button type="button" data-mode-btn="drive" aria-pressed="false">Drive</button>
+    </nav>
+  </header>
+
+  <!-- TOUR: scroll-driven chapters -->
+  <main id="tour" class="tour">
+    <section class="chapter chapter--hero" data-step="0">
+      <div class="hero-copy">
+        <p class="lede">A V12 plug-in hybrid you can walk around, rebuild in your own colours, take apart and drive.</p>
+        <p class="scroll-cue" aria-hidden="true"><span></span>Scroll to begin the tour</p>
+      </div>
+    </section>
+
+    <section class="chapter" data-step="1">
+      <div class="copy">
+        <h2>One long, low wedge</h2>
+        <p>Just under five metres long and barely 1.16 metres tall. The body is a single sharp line from the nose to the tail, with the cabin pushed forward and the engine laid out behind it.</p>
+      </div>
+    </section>
+
+    <section class="chapter chapter--right" data-step="2">
+      <div class="copy">
+        <h2>A Y in the dark</h2>
+        <p>The headlights draw a Y-shaped signature. The same shape returns in the tail lights, the air intakes and the hexagons across the engine cover.</p>
+      </div>
+    </section>
+
+    <section class="chapter" data-step="3">
+      <div class="copy">
+        <h2>Doors that open to the sky</h2>
+        <p>Scissor doors hinge at the front and swing straight up. It's a trick that flagship V12 Lamborghinis have used since the Countach.</p>
+      </div>
+    </section>
+
+    <section class="chapter chapter--right" data-step="4">
+      <div class="copy">
+        <h2>Built around the driver</h2>
+        <p>Three screens: a cluster behind the wheel, a central touchscreen and a display just for the passenger. The drive-mode controls sit on the steering wheel, so your hands never leave it.</p>
+      </div>
+    </section>
+
+    <section class="chapter" data-step="5">
+      <div class="copy">
+        <h2>Twelve cylinders, three motors</h2>
+        <p>A naturally aspirated 6.5-litre V12 makes 825 CV at 9,250 rpm. Three electric motors add to it, two on the front axle and one on the eight-speed dual-clutch gearbox behind the engine.</p>
+      </div>
+    </section>
+
+    <section class="chapter chapter--numbers" data-step="6">
+      <div class="numbers">
+        <h2>The numbers</h2>
+        <dl>
+          <div><dt>Combined power</dt><dd>1,015<small>CV</small></dd></div>
+          <div><dt>0–100 km/h</dt><dd>2.5<small>s</small></dd></div>
+          <div><dt>0–200 km/h</dt><dd>6.6<small>s</small></dd></div>
+          <div><dt>Top speed</dt><dd>350+<small>km/h</small></dd></div>
+          <div><dt>Battery</dt><dd>3.8<small>kWh</small></dd></div>
+          <div><dt>Dry weight</dt><dd>1,772<small>kg</small></dd></div>
+        </dl>
+      </div>
+    </section>
+
+    <section class="chapter chapter--end" data-step="7">
+      <div class="copy copy--end">
+        <h2>Now it's yours</h2>
+        <p>The tour is over. Pick what you want to do next.</p>
+        <div class="end-actions">
+          <button type="button" class="btn btn--primary" data-go="configure">Build your spec</button>
+          <button type="button" class="btn" data-go="explore">Explore the details</button>
+          <button type="button" class="btn" data-go="drive">Take it for a drive</button>
+        </div>
+        <p class="disclaimer">Unofficial fan project. Not affiliated with or endorsed by Automobili Lamborghini S.p.A. Figures from public sources.</p>
+      </div>
+    </section>
+  </main>
+
+  <!-- CONFIGURE -->
+  <aside class="panel panel--config" id="configPanel" aria-label="Configurator">
+    <div class="panel-scroll">
+      <h2 class="panel-title">Build your Revuelto</h2>
+
+      <fieldset class="opt">
+        <legend>Paint <output id="paintName"></output></legend>
+        <div class="swatches" id="paintSwatches"></div>
+      </fieldset>
+
+      <fieldset class="opt">
+        <legend>Finish</legend>
+        <div class="segmented" id="finishSeg"></div>
+      </fieldset>
+
+      <fieldset class="opt">
+        <legend>Wheels <output id="rimName"></output></legend>
+        <div class="swatches swatches--sm" id="rimSwatches"></div>
+      </fieldset>
+
+      <fieldset class="opt">
+        <legend>Brake calipers <output id="caliperName"></output></legend>
+        <div class="swatches swatches--sm" id="caliperSwatches"></div>
+      </fieldset>
+
+      <fieldset class="opt">
+        <legend>Interior <output id="interiorName"></output></legend>
+        <div class="swatches swatches--sm" id="interiorSwatches"></div>
+      </fieldset>
+
+      <fieldset class="opt">
+        <legend>Open and light up</legend>
+        <div class="toggles" data-toggles></div>
+      </fieldset>
+
+      <div class="summary">
+        <h3>Your spec</h3>
+        <ul id="specList"></ul>
+        <div class="summary-actions">
+          <button type="button" class="btn btn--primary" id="copyLink">Copy spec link</button>
+          <button type="button" class="btn" id="resetSpec">Reset</button>
+        </div>
+        <p class="toast" id="toast" role="status" aria-live="polite"></p>
+      </div>
+    </div>
+  </aside>
+
+  <!-- EXPLORE -->
+  <div class="hotspots" id="hotspots" aria-label="Points of interest"></div>
+  <aside class="panel panel--explore" id="explorePanel" aria-label="Explore">
+    <div class="explore-tools">
+      <button type="button" class="chip" id="xrayBtn" aria-pressed="false">X-ray</button>
+      <button type="button" class="chip" id="insideBtn" aria-pressed="false">Sit inside</button>
+      <button type="button" class="chip" id="overviewBtn">Overview</button>
+    </div>
+    <article class="info" id="infoCard" hidden>
+      <h2 id="infoTitle"></h2>
+      <p id="infoText"></p>
+      <p class="info-fact" id="infoFact"></p>
+      <div class="info-nav">
+        <button type="button" class="btn" id="prevSpot">Previous</button>
+        <button type="button" class="btn" id="nextSpot">Next</button>
+      </div>
+    </article>
+    <p class="hint" id="exploreHint">Tap a glowing point on the car, or drag to look around.</p>
+  </aside>
+
+  <!-- DRIVE -->
+  <div class="drive-hud" id="driveHud" aria-label="Drive mode">
+    <div class="drive-help">
+      <p><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or arrow keys to drive, <kbd>Space</kbd> to brake</p>
+      <p><kbd>C</kbd> camera, <kbd>L</kbd> lights, <kbd>R</kbd> reset</p>
+    </div>
+    <div class="speedo" aria-live="off">
+      <span class="speed" id="speed">0</span>
+      <span class="unit">km/h</span>
+      <div class="speedbar"><span id="speedBar"></span></div>
+    </div>
+    <div class="drive-buttons">
+      <button type="button" class="chip" id="camBtn">Camera</button>
+      <button type="button" class="chip" id="driveLightsBtn" aria-pressed="false">Lights</button>
+      <button type="button" class="chip" id="resetCarBtn">Reset</button>
+    </div>
+    <div class="touchpad touchpad--left" aria-hidden="true">
+      <button type="button" class="pad" data-key="left" tabindex="-1">◀</button>
+      <button type="button" class="pad" data-key="right" tabindex="-1">▶</button>
+    </div>
+    <div class="touchpad touchpad--right" aria-hidden="true">
+      <button type="button" class="pad pad--brake" data-key="down" tabindex="-1">Brake</button>
+      <button type="button" class="pad pad--gas" data-key="up" tabindex="-1">Go</button>
+    </div>
+  </div>
+
+  <noscript><p class="noscript">This site needs JavaScript and WebGL to show the 3D car.</p></noscript>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
